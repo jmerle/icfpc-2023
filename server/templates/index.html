@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta target="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>ICFPC 2023 Dashboard</title>
+
+    <style>
+        *, *:before, *:after {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: sans-serif;
+            white-space: nowrap;
+        }
+
+        p {
+            margin: 10px;
+        }
+
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .subtitle {
+            font-size: 20px;
+            font-weight: bolder;
+        }
+
+        a[href="/download"] {
+            padding: 10px;
+        }
+
+        table {
+            margin: 10px;
+            border-spacing: 0;
+            border-collapse: collapse;
+        }
+
+        td, th {
+            padding: 4px;
+            border: 1px solid black;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        td.submissions > table {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <p class="title">ICFPC 2023 Dashboard</p>
+    <p class="subtitle">Total score: {{ score | format_large }}</p>
+
+    <a href="/download" target="_blank">Download source code submission</a>
+
+    <p class="subtitle">Best submissions per problem</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Problem</th>
+                <th>Musicians</th>
+                <th>Instruments</th>
+                <th>Attendees</th>
+                <th>Score</th>
+                <th>Target</th>
+                <th>Timestamp</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for problem in problems %}
+                <tr>
+                    <td>{{ problem.id }}</td>
+                    <td>{{ problem.problem.musicians | length }}</td>
+                    <td>{{ problem.problem.musicians | unique | list | length }}</td>
+                    <td>{{ problem.problem.attendees | length }}</td>
+                    {% if problem.submissions | length > 0 %}
+                        <td>{{ problem.submissions[0].score | format_large }}</td>
+                        <td>{{ problem.submissions[0].target }}</td>
+                        <td>{{ problem.submissions[0].created_at }}</td>
+                        <td>
+                            <a href="/submissions/{{ problem.submissions[0].id }}/solution" target="_blank">Download solution</a>
+                            <a href="/submissions/{{ problem.submissions[0].id }}/source" target="_blank">Download source</a>
+                        </td>
+                    {% else %}
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                    {% endif %}
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if recent_submissions | length > 0 %}
+        <p class="subtitle">Last {{ recent_submissions | length }} submissions</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Problem</th>
+                    <th>Score</th>
+                    <th>Target</th>
+                    <th>Timestamp</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for submission in recent_submissions %}
+                    <tr>
+                        <td>{{ submission.problem_id }}</td>
+                        <td>{{ submission.score | format_large }}</td>
+                        <td>{{ submission.target }}</td>
+                        <td>{{ submission.created_at }}</td>
+                        <td>
+                            <a href="/submissions/{{ submission.id }}/solution" target="_blank">Download solution</a>
+                            <a href="/submissions/{{ submission.id }}/source" target="_blank">Download source</a>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+
+    <p class="subtitle">All problems</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Problem</th>
+                <th>Description</th>
+                <th>Submissions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for problem in problems %}
+                <tr>
+                    <td>{{ problem.id }}</td>
+                    <td>
+                        Room dimension: {{ problem.problem.room_width | format_small }} x {{ problem.problem.room_height | format_small }}<br/>
+                        Stage dimension: {{ problem.problem.stage_width | format_small }} x {{ problem.problem.stage_height | format_small }}<br/>
+                        Stage bottom left: ({{ problem.problem.stage_bottom_left[0] | format_small }}, {{ problem.problem.stage_bottom_left[1] | format_small }})<br/>
+                        Musicians: {{ problem.problem.musicians | length }}<br/>
+                        Instruments: {{ problem.problem.musicians | unique | list | length }}<br/>
+                        Attendees: {{ problem.problem.attendees | length }}
+                    </td>
+                    <td class="submissions">
+                        {% if problem.submissions | length > 0 %}
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Score</th>
+                                        <th>Target</th>
+                                        <th>Timestamp</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                        {% for submission in problem.submissions %}
+                                            <tr>
+                                                <td>{{ submission.score | format_large }}</td>
+                                                <td>{{ submission.target }}</td>
+                                                <td>{{ submission.created_at }}</td>
+                                                <td>
+                                                    <a href="/submissions/{{ submission.id }}/solution" target="_blank">Download solution</a>
+                                                    <a href="/submissions/{{ submission.id }}/source" target="_blank">Download source</a>
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                </tbody>
+                            </table>
+                        {% else %}
+                            None
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
