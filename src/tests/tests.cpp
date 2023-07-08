@@ -89,6 +89,32 @@ TEST_F(SolutionFixture, GetScoreExampleFull) {
     EXPECT_EQ(solution.getScore(ScoreType::FULL), 5357);
 }
 
+TEST_F(SolutionFixture, GetScoreExtendedExample) {
+    int id = 1;
+    Area room({0, 0}, 2000, 5000);
+    Area stage({500 + 10, 0 + 10}, 1000 - 20, 200 - 20);
+    std::vector<int> musicians{0, 1, 0};
+    std::vector<Attendee> attendees{
+            {{100,  500},  {1000, -1000}},
+            {{200,  1000}, {200,  200}},
+            {{1100, 800},  {800,  1500}}
+    };
+    std::vector<Pillar> pillars{
+            {{345, 255}, 4}
+    };
+
+    Problem problem(id, room, stage, musicians, attendees, pillars);
+    std::vector<Point> placements{
+            {590,  10},
+            {1100, 100},
+            {1100, 150}
+    };
+
+    Solution solution(problem, placements);
+
+    EXPECT_EQ(solution.getScore(ScoreType::FULL), 3270);
+}
+
 TEST_F(SolutionFixture, ToJsonExample) {
     auto solution = createExampleSolution();
 
