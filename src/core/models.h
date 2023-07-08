@@ -69,6 +69,15 @@ struct Attendee {
     Attendee(const Point &position, const std::vector<double> &tastes) : position(position), tastes(tastes) {}
 };
 
+struct Pillar {
+    Point center;
+    double radius;
+
+    Pillar() = default;
+
+    Pillar(const Point &center, double radius) : center(center), radius(radius) {}
+};
+
 struct Problem {
     int id;
 
@@ -77,13 +86,15 @@ struct Problem {
 
     std::vector<int> musicians;
     std::vector<Attendee> attendees;
+    std::vector<Pillar> pillars;
 
     Problem(int id,
             const Area &room,
             const Area &stage,
             const std::vector<int> &musicians,
-            const std::vector<Attendee> &attendees)
-            : id(id), room(room), stage(stage), musicians(musicians), attendees(attendees) {}
+            const std::vector<Attendee> &attendees,
+            const std::vector<Pillar> &pillars)
+            : id(id), room(room), stage(stage), musicians(musicians), attendees(attendees), pillars(pillars) {}
 
     explicit Problem(const std::filesystem::path &file) {
         auto data = readJson(file);
@@ -98,8 +109,8 @@ struct Problem {
 
         const auto &musiciansArr = data["musicians"].GetArray();
         musicians.reserve(musiciansArr.Size());
-        for (const auto &value : musiciansArr) {
-            musicians.emplace_back(value.GetInt());
+        for (const auto &musicianValue : musiciansArr) {
+            musicians.emplace_back(musicianValue.GetInt());
         }
 
         const auto &attendeesArr = data["attendees"].GetArray();
@@ -118,7 +129,26 @@ struct Problem {
 
             attendees.emplace_back(position, tastes);
         }
+
+        const auto &pillarsArr = data["pillars"].GetArray();
+        pillars.reserve(pillarsArr.Size());
+        for (const auto &pillarValue : pillarsArr) {
+            const auto &pillarObj = pillarValue.GetObject();
+
+            const auto &centerArr = pillarObj["center"].GetArray();
+            Point center(centerArr[0].GetDouble(), centerArr[1].GetDouble());
+
+            double radius = pillarObj["radius"].GetDouble();
+
+            pillars.emplace_back(center, radius);
+        }
     }
+};
+
+enum class ScoreType {
+    AUTO,
+    LIGHTNING,
+    FULL
 };
 
 struct Solution {
@@ -149,7 +179,27 @@ struct Solution {
         return true;
     }
 
-    long long getScore() const {
+    long long getScore(ScoreType type = ScoreType::AUTO) const {
+        if (type == ScoreType::AUTO) {
+            type = problem.id <= 55 ? ScoreType::LIGHTNING : ScoreType::FULL;
+        }
+
+        std::vector<double> closenessFactors;
+        if (type == ScoreType::FULL) {
+            closenessFactors.reserve(placements.size());
+            for (std::size_t i = 0; i < placements.size(); i++) {
+                double closeness = 1;
+
+                for (std::size_t j = 0; j < placements.size(); j++) {
+                    if (i != j && problem.musicians[i] == problem.musicians[j]) {
+                        closeness += 1.0 / placements[i].distanceTo(placements[j]);
+                    }
+                }
+
+                closenessFactors.emplace_back(closeness);
+            }
+        }
+
         BS::thread_pool threadPool;
 
         std::vector<std::future<long long>> futures;
@@ -166,7 +216,7 @@ struct Solution {
 
                     bool isBlocked = false;
                     for (std::size_t j = 0; j < placements.size(); j++) {
-                        if (i != j && isBlockingPlacement(placements[i], placements[j], attendee.position)) {
+                        if (i != j && isBlocking(placements[i], attendee.position, placements[j], 5)) {
                             isBlocked = true;
                             break;
                         }
@@ -176,9 +226,28 @@ struct Solution {
                         continue;
                     }
 
+                    if (type == ScoreType::FULL) {
+                        for (const auto &pillar : problem.pillars) {
+                            if (isBlocking(placements[i], attendee.position, pillar.center, pillar.radius)) {
+                                isBlocked = true;
+                                break;
+                            }
+                        }
+
+                        if (isBlocked) {
+                            continue;
+                        }
+                    }
+
                     double taste = 1'000'000.0 * attendee.tastes[problem.musicians[i]];
                     double distance = attendee.position.distanceTo(placements[i]);
-                    score += std::ceil(taste / std::pow(distance, 2));
+                    double impact = std::ceil(taste / std::pow(distance, 2));
+
+                    if (type == ScoreType::LIGHTNING) {
+                        score += impact;
+                    } else {
+                        score += std::ceil(closenessFactors[i] * impact);
+                    }
                 }
 
                 return score;
@@ -221,18 +290,18 @@ struct Solution {
     }
 
 private:
-    bool isBlockingPlacement(const Point &musician1, const Point &musician2, const Point &attendee) const {
+    bool isBlocking(const Point &from, const Point &to, const Point &blockingCenter, double blockingRadius) const {
         // Based on https://math.stackexchange.com/a/275537
 
-        double ax = musician1.x;
-        double ay = musician1.y;
+        double ax = from.x;
+        double ay = from.y;
 
-        double bx = attendee.x;
-        double by = attendee.y;
+        double bx = to.x;
+        double by = to.y;
 
-        double cx = musician2.x;
-        double cy = musician2.y;
-        double r = 5;
+        double cx = blockingCenter.x;
+        double cy = blockingCenter.y;
+        double r = blockingRadius;
 
         ax -= cx;
         ay -= cy;

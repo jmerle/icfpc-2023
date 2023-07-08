@@ -69,6 +69,7 @@
                 <th>Musicians</th>
                 <th>Instruments</th>
                 <th>Attendees</th>
+                <th>Pillars</th>
                 <th>Score</th>
                 <th>Target</th>
                 <th>Timestamp</th>
@@ -82,6 +83,7 @@
                     <td>{{ problem.problem.musicians | length }}</td>
                     <td>{{ problem.problem.musicians | unique | list | length }}</td>
                     <td>{{ problem.problem.attendees | length }}</td>
+                    <td>{{ problem.problem.pillars | length }}</td>
                     {% if problem.submissions | length > 0 %}
                         <td>{{ problem.submissions[0].score | format_large }}</td>
                         <td>{{ problem.submissions[0].target }}</td>
@@ -151,7 +153,8 @@
                         Stage bottom left: ({{ problem.problem.stage_bottom_left[0] | format_small }}, {{ problem.problem.stage_bottom_left[1] | format_small }})<br/>
                         Musicians: {{ problem.problem.musicians | length }}<br/>
                         Instruments: {{ problem.problem.musicians | unique | list | length }}<br/>
-                        Attendees: {{ problem.problem.attendees | length }}
+                        Attendees: {{ problem.problem.attendees | length }}<br/>
+                        Pillars: {{ problem.problem.pillars | length }}
                     </td>
                     <td class="submissions">
                         {% if problem.submissions | length > 0 %}

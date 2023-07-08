@@ -41,7 +41,7 @@ static void isValid(benchmark::State &state) {
     }
 }
 
-BENCHMARK(isValid)->Arg(1)->Arg(2)->Arg(5)->Arg(20)->Arg(42)->Unit(benchmark::kMillisecond);
+BENCHMARK(isValid)->Arg(1)->Arg(2)->Arg(5)->Arg(20)->Arg(42)->Arg(56)->Arg(73)->Arg(79)->Unit(benchmark::kMillisecond);
 
 static void getScore(benchmark::State &state) {
     auto solution = generateSolution(state.range(0));
@@ -51,6 +51,6 @@ static void getScore(benchmark::State &state) {
     }
 }
 
-BENCHMARK(getScore)->Arg(1)->Arg(2)->Arg(5)->Arg(20)->Arg(42)->Iterations(10)->Unit(benchmark::kMillisecond);
+BENCHMARK(getScore)->Arg(1)->Arg(2)->Arg(5)->Arg(20)->Arg(42)->Arg(56)->Arg(73)->Arg(79)->Unit(benchmark::kMillisecond);
 
 BENCHMARK_MAIN();

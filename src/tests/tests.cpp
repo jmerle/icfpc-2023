@@ -16,8 +16,9 @@ protected:
                 {{200,  1000}, {200,  200}},
                 {{1100, 800},  {800,  1500}}
         };
+        std::vector<Pillar> pillars;
 
-        return {id, room, stage, musicians, attendees};
+        return {id, room, stage, musicians, attendees, pillars};
     }
 
     Solution createExampleSolution() const {
@@ -70,10 +71,22 @@ TEST_F(SolutionFixture, IsValidFalseWhenMusicianTooCloseToOtherMusician) {
     EXPECT_TRUE(solution.isValid());
 }
 
-TEST_F(SolutionFixture, GetScoreExample) {
+TEST_F(SolutionFixture, GetScoreExampleAuto) {
     auto solution = createExampleSolution();
 
-    EXPECT_EQ(solution.getScore(), 5343);
+    EXPECT_EQ(solution.getScore(ScoreType::AUTO), 5343);
+}
+
+TEST_F(SolutionFixture, GetScoreExampleLightning) {
+    auto solution = createExampleSolution();
+
+    EXPECT_EQ(solution.getScore(ScoreType::LIGHTNING), 5343);
+}
+
+TEST_F(SolutionFixture, GetScoreExampleFull) {
+    auto solution = createExampleSolution();
+
+    EXPECT_EQ(solution.getScore(ScoreType::FULL), 5357);
 }
 
 TEST_F(SolutionFixture, ToJsonExample) {

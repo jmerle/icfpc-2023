@@ -5,7 +5,10 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <locale>
+#include <memory>
 #include <mutex>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -26,6 +29,16 @@
 extern const unsigned char _binary_source_zip_start;
 extern const unsigned char _binary_source_zip_end;
 
+struct ThousandsSeparator : std::numpunct<char> {
+    char_type do_thousands_sep() const override {
+        return ',';
+    }
+
+    string_type do_grouping() const override {
+        return "\3";
+    }
+};
+
 class Program {
     std::string target;
 
@@ -42,6 +55,8 @@ class Program {
 public:
     explicit Program(const std::string &name)
             : target(name), server(getEnv("SERVER_URL", "")), serverEnabled(!getEnv("SERVER_URL", "").empty()) {
+        std::cout.imbue(std::locale(std::cout.getloc(), new ThousandsSeparator()));
+
         projectRoot = std::filesystem::current_path();
         while (projectRoot.has_parent_path() && !std::filesystem::is_directory(projectRoot / "problems")) {
             projectRoot = projectRoot.parent_path();
@@ -112,7 +127,7 @@ public:
         }
 
         int score = solution.getScore();
-        if (score < 0) {
+        if (score <= 0) {
             return;
         }
 
@@ -215,16 +230,22 @@ private:
                               int problemId,
                               int score,
                               const std::string &label) const {
+        std::stringstream stream;
+
+        auto thousandsSeparator = std::make_unique<ThousandsSeparator>();
+        stream.imbue(std::locale(stream.getloc(), thousandsSeparator.release()));
+
         if (scores.contains(problemId)) {
             if (scores.at(problemId) >= score) {
-                return "";
+                return stream.str();
             }
 
-            return "[Problem " + std::to_string(problemId) + "] Found new best " + label + " score: "
-                   + std::to_string(scores.at(problemId)) + " -> " + std::to_string(score);
+            stream << "[Problem " << problemId << "] Found new best " << label << " score: "
+                   << scores.at(problemId) << " -> " << score;
+            return stream.str();
         }
 
-        return "[Problem " + std::to_string(problemId) + "] Found new best " + label + " score: "
-               + std::to_string(score);
+        stream << "[Problem " << problemId << "] Found new best " << label << " score: " << score;
+        return stream.str();
     }
 };
