@@ -93,6 +93,7 @@
                         <td>
                             <a href="/submissions/{{ problem.submissions[0].id }}/solution" target="_blank">Download solution</a>
                             <a href="/submissions/{{ problem.submissions[0].id }}/source" target="_blank">Download source</a>
+                            <a href="/submissions/{{ problem.submissions[0].id }}/delete">Delete</a>
                         </td>
                     {% else %}
                         <td>-</td>
@@ -131,6 +132,7 @@
                         <td>
                             <a href="/submissions/{{ submission.id }}/solution" target="_blank">Download solution</a>
                             <a href="/submissions/{{ submission.id }}/source" target="_blank">Download source</a>
+                            <a href="/submissions/{{ submission.id }}/delete">Delete</a>
                         </td>
                     </tr>
                 {% endfor %}
@@ -183,6 +185,7 @@
                                                 <td>
                                                     <a href="/submissions/{{ submission.id }}/solution" target="_blank">Download solution</a>
                                                     <a href="/submissions/{{ submission.id }}/source" target="_blank">Download source</a>
+                                                    <a href="/submissions/{{ submission.id }}/delete">Delete</a>
                                                 </td>
                                             </tr>
                                         {% endfor %}

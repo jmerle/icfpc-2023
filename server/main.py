@@ -1,12 +1,13 @@
 import orjson
 import os
 import requests
+import shutil
 import tempfile
 from collections import defaultdict
 from contextlib import contextmanager
 from discord_webhook import DiscordEmbed, DiscordWebhook
 from dotenv import load_dotenv
-from flask import abort, Flask, render_template, request, send_file
+from flask import abort, Flask, render_template, redirect, request, send_file
 from flask.typing import ResponseReturnValue
 from flask_httpauth import HTTPBasicAuth
 from flask_sqlalchemy import SQLAlchemy
@@ -195,12 +196,33 @@ Total score: $$TOTAL_SCORE$$
 @app.get("/submissions/<int:id>/solution")
 @auth.login_required(role="admin")
 def download_solution(id: int) -> ResponseReturnValue:
-    return send_file(submissions_dir / str(id) / "solution.json", as_attachment=True)
+    file = submissions_dir / str(id) / "solution.json"
+    if not file.is_file():
+        abort(404)
+
+    return send_file(file, as_attachment=True)
 
 @app.get("/submissions/<int:id>/source")
 @auth.login_required(role="admin")
 def download_source(id: int) -> ResponseReturnValue:
-    return send_file(submissions_dir / str(id) / "source.zip", as_attachment=True)
+    file = submissions_dir / str(id) / "source.zip"
+    if not file.is_file():
+        abort(404)
+
+    return send_file(file, as_attachment=True)
+
+@app.get("/submissions/<int:id>/delete")
+@auth.login_required(role="admin")
+def delete_submission(id: int) -> ResponseReturnValue:
+    submission = db.session.execute(db.select(Submission).filter_by(id=id)).first()
+    if submission is None:
+        abort(404)
+
+    shutil.rmtree(submissions_dir / str(id), ignore_errors=True)
+    db.session.delete(submission[0])
+    db.session.commit()
+
+    return redirect("/")
 
 @app.get("/problems/<int:id>/solution")
 @auth.login_required(role="submitter")

@@ -32,8 +32,9 @@ protected:
                 {1100, 100},
                 {1100, 150}
         };
+        std::vector<double> volumes{1, 1, 1};
 
-        return {problem, placements};
+        return {problem, placements, volumes};
     }
 };
 
@@ -78,19 +79,19 @@ TEST_F(SolutionFixture, IsValidFalseWhenMusicianTooCloseToOtherMusician) {
 TEST_F(SolutionFixture, GetScoreExampleAuto) {
     auto solution = createExampleSolution();
 
-    EXPECT_EQ(solution.getScore(ScoreType::AUTO), 5343);
+    EXPECT_EQ(solution.getScore(ScoreType::AUTO, false), 5343);
 }
 
 TEST_F(SolutionFixture, GetScoreExampleLightning) {
     auto solution = createExampleSolution();
 
-    EXPECT_EQ(solution.getScore(ScoreType::LIGHTNING), 5343);
+    EXPECT_EQ(solution.getScore(ScoreType::LIGHTNING, false), 5343);
 }
 
 TEST_F(SolutionFixture, GetScoreExampleFull) {
     auto solution = createExampleSolution();
 
-    EXPECT_EQ(solution.getScore(ScoreType::FULL), 5357);
+    EXPECT_EQ(solution.getScore(ScoreType::FULL, false), 5357);
 }
 
 TEST_F(SolutionFixture, GetScoreExtendedExample) {
@@ -113,10 +114,11 @@ TEST_F(SolutionFixture, GetScoreExtendedExample) {
             {1100, 100},
             {1100, 150}
     };
+    std::vector<double> volumes{1, 1, 1};
 
-    Solution solution(problem, placements);
+    Solution solution(problem, placements, volumes);
 
-    EXPECT_EQ(solution.getScore(ScoreType::FULL), 3270);
+    EXPECT_EQ(solution.getScore(ScoreType::FULL, false), 3270);
 }
 
 TEST_F(SolutionFixture, ToJsonExample) {
@@ -130,7 +132,7 @@ TEST_F(SolutionFixture, ToJsonExample) {
     std::string json = jsonBuffer.GetString();
 
     EXPECT_EQ(json,
-              "{\"placements\":[{\"x\":590.0,\"y\":10.0},{\"x\":1100.0,\"y\":100.0},{\"x\":1100.0,\"y\":150.0}]}");
+              "{\"placements\":[{\"x\":590.0,\"y\":10.0},{\"x\":1100.0,\"y\":100.0},{\"x\":1100.0,\"y\":150.0}],\"volumes\":[1.0,1.0,1.0]}");
 }
 
 int main(int argc, char *argv[]) {

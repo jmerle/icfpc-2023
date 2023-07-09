@@ -52,29 +52,32 @@ int main(int argc, char *argv[]) {
     std::random_device randomDevice;
     std::mt19937 rng(randomDevice());
 
-    double randomTime = 5;
-    double optimizeTime = 60;
-    double submissionInterval = 30;
+    double randomTime = 30;
+    double optimizeTime = 240;
+    double submissionInterval = 60;
 
     for (const auto &problem : problems) {
-        std::cout << *problem << "Generating initial random solution" << std::endl;
-
-        auto bestSolution = generateRandomSolution(problem);
-        auto bestScore = bestSolution.getScore();
-        program.submit(bestSolution, bestScore);
+        Solution bestSolution(problem, {}, {});
+        long long bestScore = 0;
 
         if (program.isServerEnabled()) {
             std::cout << *problem << "Retrieving best global solution" << std::endl;
-
             auto bestGlobalSolution = program.getBestGlobalSolution(problem);
             if (bestGlobalSolution) {
-                auto bestGlobalScore = bestGlobalSolution->getScore();
-                if (bestGlobalScore >= bestScore) {
-                    bestSolution = *bestGlobalSolution;
-                    bestScore = bestGlobalScore;
-                    program.submit(bestSolution, bestScore);
-                }
+                bestSolution = *bestGlobalSolution;
+                bestScore = bestGlobalSolution->getScore();
+                program.submit(bestSolution, bestScore);
+            } else {
+                std::cout << *problem << "No best global solution found" << std::endl;
             }
+        }
+
+        if (bestScore == 0) {
+            std::cout << *problem << "Generating initial random solution" << std::endl;
+
+            bestSolution = generateRandomSolution(problem);
+            bestScore = bestSolution.getScore();
+            program.submit(bestSolution, bestScore);
         }
 
         std::cout << *problem << "Finding best random solution for " << randomTime << " seconds" << std::endl;
@@ -122,16 +125,11 @@ int main(int argc, char *argv[]) {
                     std::swap(newSolution.placements[indexDist(rng)], newSolution.placements[indexDist(rng)]);
                     break;
                 }
-                case 1: {
+                case 1:
+                case 2: {
                     auto &placement = newSolution.placements[indexDist(rng)];
                     placement.x += deltaDist(rng);
                     placement.y += deltaDist(rng);
-                    break;
-                }
-                case 2: {
-                    auto &placement = newSolution.placements[indexDist(rng)];
-                    placement.x = xDist(rng);
-                    placement.y = yDist(rng);
                     break;
                 }
             }

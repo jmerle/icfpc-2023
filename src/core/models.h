@@ -7,6 +7,7 @@
 #include <memory>
 #include <ostream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <oneapi/tbb.h>
@@ -172,9 +173,20 @@ enum class ScoreType {
 struct Solution {
     std::shared_ptr<Problem> problem;
     std::vector<Point> placements;
+    std::vector<double> volumes;
 
     Solution(const std::shared_ptr<Problem> &problem, const std::vector<Point> &placements)
-            : problem(problem), placements(placements) {}
+            : problem(problem), placements(placements) {
+        volumes.reserve(placements.size());
+        for (std::size_t i = 0; i < placements.size(); i++) {
+            volumes.emplace_back(1);
+        }
+    }
+
+    Solution(const std::shared_ptr<Problem> &problem,
+             const std::vector<Point> &placements,
+             const std::vector<double> &volumes)
+            : problem(problem), placements(placements), volumes(volumes) {}
 
     Solution(const std::shared_ptr<Problem> &problem, const rapidjson::Document &data) : problem(problem) {
         const auto &placementsArr = data["placements"].GetArray();
@@ -186,6 +198,18 @@ struct Solution {
             double y = placementObj["y"].GetDouble();
 
             placements.emplace_back(x, y);
+        }
+
+        volumes.reserve(placements.size());
+        if (data.HasMember("volumes")) {
+            const auto &volumesArr = data["volumes"].GetArray();
+            for (const auto &volumeValue : volumesArr) {
+                volumes.emplace_back(volumeValue.GetDouble());
+            }
+        } else {
+            for (std::size_t i = 0; i < placements.size(); i++) {
+                volumes.emplace_back(1);
+            }
         }
     }
 
@@ -208,10 +232,20 @@ struct Solution {
             }
         }
 
+        if (problem->musicians.size() != volumes.size()) {
+            return false;
+        }
+
+        for (auto volume : volumes) {
+            if (volume < 0 || volume > 10) {
+                return false;
+            }
+        }
+
         return true;
     }
 
-    long long getScore(ScoreType type = ScoreType::AUTO) const {
+    long long getScore(ScoreType type = ScoreType::AUTO, bool optimizeVolumes = true) {
         if (type == ScoreType::AUTO) {
             type = problem->id <= 55 ? ScoreType::LIGHTNING : ScoreType::FULL;
         }
@@ -232,10 +266,70 @@ struct Solution {
             }
         }
 
-        return oneapi::tbb::parallel_reduce(
+        if (!optimizeVolumes) {
+            return oneapi::tbb::parallel_reduce(
+                    oneapi::tbb::blocked_range<std::size_t>(0, problem->attendees.size()),
+                    static_cast<long long>(0),
+                    [&](const oneapi::tbb::blocked_range<std::size_t> &range, long long init) {
+                        for (std::size_t attendeeIdx = range.begin(); attendeeIdx != range.end(); attendeeIdx++) {
+                            const auto &attendee = problem->attendees[attendeeIdx];
+                            for (std::size_t i = 0; i < placements.size(); i++) {
+                                if (attendee.tastes[problem->musicians[i]] == 0) {
+                                    continue;
+                                }
+
+                                bool isBlocked = false;
+                                for (std::size_t j = 0; j < placements.size(); j++) {
+                                    if (i != j && isBlocking(placements[i], attendee.position, placements[j], 5)) {
+                                        isBlocked = true;
+                                        break;
+                                    }
+                                }
+
+                                if (isBlocked) {
+                                    continue;
+                                }
+
+                                if (type == ScoreType::FULL) {
+                                    for (const auto &pillar : problem->pillars) {
+                                        if (isBlocking(placements[i], attendee.position, pillar.center,
+                                                       pillar.radius)) {
+                                            isBlocked = true;
+                                            break;
+                                        }
+                                    }
+
+                                    if (isBlocked) {
+                                        continue;
+                                    }
+                                }
+
+                                double volume = volumes[i];
+
+                                double taste = 1'000'000.0 * attendee.tastes[problem->musicians[i]];
+                                double distance = attendee.position.distanceTo(placements[i]);
+                                double impact = std::ceil(taste / std::pow(distance, 2));
+
+                                if (type == ScoreType::LIGHTNING) {
+                                    init += std::ceil(volume * impact);
+                                } else {
+                                    init += std::ceil(volume * closenessFactors[i] * impact);
+                                }
+                            }
+                        }
+
+                        return init;
+                    },
+                    [](long long lhs, long long rhs) {
+                        return lhs + rhs;
+                    }
+            );
+        }
+
+        auto scoresByMusician = oneapi::tbb::parallel_reduce(
                 oneapi::tbb::blocked_range<std::size_t>(0, problem->attendees.size()),
-                static_cast<long long>(0),
-                [&](const oneapi::tbb::blocked_range<std::size_t> &range, long long init) {
+                std::vector<std::vector<double>>(placements.size()),
+                [&](const oneapi::tbb::blocked_range<std::size_t> &range, std::vector<std::vector<double>> init) {
                     for (std::size_t attendeeIdx = range.begin(); attendeeIdx != range.end(); attendeeIdx++) {
                         const auto &attendee = problem->attendees[attendeeIdx];
                         for (std::size_t i = 0; i < placements.size(); i++) {
@@ -273,19 +367,48 @@ struct Solution {
                             double impact = std::ceil(taste / std::pow(distance, 2));
 
                             if (type == ScoreType::LIGHTNING) {
-                                init += impact;
+                                init[i].emplace_back(impact);
                             } else {
-                                init += std::ceil(closenessFactors[i] * impact);
+                                init[i].emplace_back(closenessFactors[i] * impact);
                             }
                         }
                     }
 
                     return init;
                 },
-                [](long long lhs, long long rhs) {
-                    return lhs + rhs;
+                [](const std::vector<std::vector<double>> &lhs, const std::vector<std::vector<double>> &rhs) {
+                    std::vector<std::vector<double>> scores(lhs.size());
+                    for (std::size_t i = 0; i < lhs.size(); i++) {
+                        scores[i].insert(scores[i].end(), lhs[i].begin(), lhs[i].end());
+                        scores[i].insert(scores[i].end(), rhs[i].begin(), rhs[i].end());
+                    }
+
+                    return scores;
                 }
         );
+
+        long long totalScore = 0;
+
+        volumes.clear();
+        volumes.reserve(placements.size());
+
+        for (const auto &scores : scoresByMusician) {
+            double musicianScore = 0;
+            for (auto score : scores) {
+                musicianScore += score;
+            }
+
+            if (musicianScore <= 0) {
+                volumes.emplace_back(0);
+            } else {
+                volumes.emplace_back(10);
+                for (auto score : scores) {
+                    totalScore += std::ceil(10.0 * score);
+                }
+            }
+        }
+
+        return totalScore;
     }
 
     rapidjson::Document toJson() const {
@@ -311,7 +434,19 @@ struct Solution {
             placementsArr.PushBack(placementObj, doc.GetAllocator());
         }
 
+        rapidjson::Value volumesArr;
+        volumesArr.SetArray();
+
+        for (auto volume : volumes) {
+            rapidjson::Value volumeValue;
+            volumeValue.SetDouble(volume);
+
+            volumesArr.PushBack(volumeValue, doc.GetAllocator());
+        }
+
         doc.AddMember("placements", placementsArr, doc.GetAllocator());
+        doc.AddMember("volumes", volumesArr, doc.GetAllocator());
+
         return doc;
     }
 

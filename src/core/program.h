@@ -6,7 +6,6 @@
 #include <iostream>
 #include <locale>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -49,8 +48,6 @@ class Program {
 
     std::unordered_map<int, long long> localScores;
     std::unordered_map<int, long long> globalScores;
-
-    std::mutex submitMutex;
 
 public:
     explicit Program(const std::string &name)
@@ -123,7 +120,7 @@ public:
     }
 
     std::optional<Solution> getBestGlobalSolution(const std::shared_ptr<Problem> &problem) {
-        if (!serverEnabled) {
+        if (!serverEnabled || !globalScores.contains(problem->id)) {
             return std::nullopt;
         }
 
@@ -138,7 +135,7 @@ public:
         return Solution(problem, responseData);
     }
 
-    void submit(const Solution &solution) {
+    void submit(Solution &solution) {
         submit(solution, solution.getScore());
     }
 
@@ -150,8 +147,6 @@ public:
         if (score <= 0) {
             return;
         }
-
-        std::unique_lock submitLock(submitMutex);
 
         auto localImprovement = isImprovement(localScores, solution.problem->id, score, "local");
         if (!localImprovement.empty()) {

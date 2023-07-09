@@ -10,6 +10,7 @@ int main(int argc, char *argv[]) {
 
     for (const auto &problem : problems) {
         std::vector<Point> placements;
+        placements.reserve(problem->musicians.size());
 
         Point nextPlacement = problem->stage.bottomLeft;
         for (std::size_t i = 0; i < problem->musicians.size(); i++) {
