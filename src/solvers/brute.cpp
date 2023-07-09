@@ -52,15 +52,32 @@ int main(int argc, char *argv[]) {
     std::random_device randomDevice;
     std::mt19937 rng(randomDevice());
 
-    double randomTime = 30;
-    double optimizeTime = 240;
+    double randomTime = 5;
+    double optimizeTime = 60;
     double submissionInterval = 30;
 
     for (const auto &problem : problems) {
-        std::cout << *problem << "Finding best random solution for " << randomTime << " seconds" << std::endl;
+        std::cout << *problem << "Generating initial random solution" << std::endl;
 
         auto bestSolution = generateRandomSolution(problem);
         auto bestScore = bestSolution.getScore();
+        program.submit(bestSolution, bestScore);
+
+        if (program.isServerEnabled()) {
+            std::cout << *problem << "Retrieving best global solution" << std::endl;
+
+            auto bestGlobalSolution = program.getBestGlobalSolution(problem);
+            if (bestGlobalSolution) {
+                auto bestGlobalScore = bestGlobalSolution->getScore();
+                if (bestGlobalScore >= bestScore) {
+                    bestSolution = *bestGlobalSolution;
+                    bestScore = bestGlobalScore;
+                    program.submit(bestSolution, bestScore);
+                }
+            }
+        }
+
+        std::cout << *problem << "Finding best random solution for " << randomTime << " seconds" << std::endl;
 
         Timer randomTimer;
         std::size_t randomIteration = 1;

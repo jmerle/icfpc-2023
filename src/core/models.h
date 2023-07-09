@@ -176,6 +176,19 @@ struct Solution {
     Solution(const std::shared_ptr<Problem> &problem, const std::vector<Point> &placements)
             : problem(problem), placements(placements) {}
 
+    Solution(const std::shared_ptr<Problem> &problem, const rapidjson::Document &data) : problem(problem) {
+        const auto &placementsArr = data["placements"].GetArray();
+        placements.reserve(placementsArr.Size());
+        for (const auto &placementValue : placementsArr) {
+            const auto &placementObj = placementValue.GetObject();
+
+            double x = placementObj["x"].GetDouble();
+            double y = placementObj["y"].GetDouble();
+
+            placements.emplace_back(x, y);
+        }
+    }
+
     bool isValid() const {
         if (problem->musicians.size() != placements.size()) {
             return false;

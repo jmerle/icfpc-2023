@@ -71,6 +71,7 @@
                 <th>Attendees</th>
                 <th>Pillars</th>
                 <th>Score</th>
+                <th>Score Δ</th>
                 <th>Target</th>
                 <th>Timestamp</th>
                 <th>Actions</th>
@@ -86,6 +87,7 @@
                     <td>{{ problem.problem.pillars | length }}</td>
                     {% if problem.submissions | length > 0 %}
                         <td>{{ problem.submissions[0].score | format_large }}</td>
+                        <td>+{{ problem.submissions[0].score_delta | format_large }}</td>
                         <td>{{ problem.submissions[0].target }}</td>
                         <td>{{ problem.submissions[0].created_at }}</td>
                         <td>
@@ -93,6 +95,7 @@
                             <a href="/submissions/{{ problem.submissions[0].id }}/source" target="_blank">Download source</a>
                         </td>
                     {% else %}
+                        <td>-</td>
                         <td>-</td>
                         <td>-</td>
                         <td>-</td>
@@ -111,6 +114,7 @@
                 <tr>
                     <th>Problem</th>
                     <th>Score</th>
+                    <th>Score Δ</th>
                     <th>Target</th>
                     <th>Timestamp</th>
                     <th>Actions</th>
@@ -121,6 +125,7 @@
                     <tr>
                         <td>{{ submission.problem_id }}</td>
                         <td>{{ submission.score | format_large }}</td>
+                        <td>+{{ submission.score_delta | format_large }}</td>
                         <td>{{ submission.target }}</td>
                         <td>{{ submission.created_at }}</td>
                         <td>
@@ -162,6 +167,7 @@
                                 <thead>
                                     <tr>
                                         <th>Score</th>
+                                        <th>Score Δ</th>
                                         <th>Target</th>
                                         <th>Timestamp</th>
                                         <th>Actions</th>
@@ -171,6 +177,7 @@
                                         {% for submission in problem.submissions %}
                                             <tr>
                                                 <td>{{ submission.score | format_large }}</td>
+                                                <td>+{{ submission.score_delta | format_large }}</td>
                                                 <td>{{ submission.target }}</td>
                                                 <td>{{ submission.created_at }}</td>
                                                 <td>

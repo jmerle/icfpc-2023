@@ -6,11 +6,10 @@ from collections import defaultdict
 from contextlib import contextmanager
 from discord_webhook import DiscordEmbed, DiscordWebhook
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, send_file
+from flask import abort, Flask, render_template, request, send_file
 from flask.typing import ResponseReturnValue
 from flask_httpauth import HTTPBasicAuth
 from flask_sqlalchemy import SQLAlchemy
-from multiprocessing import Process
 from pathlib import Path
 from sqlalchemy import Column, DateTime, Integer, String
 from sqlalchemy.sql import func
@@ -121,17 +120,23 @@ def index() -> ResponseReturnValue:
         if len(submissions) > 0:
             score += submissions[0].score
 
+        for i, submission in enumerate(submissions):
+            if i + 1 < len(submissions):
+                submission.score_delta = submission.score - submissions[i + 1].score
+            else:
+                submission.score_delta = submission.score
+
         problems.append({
             "id": id,
             "problem": problem,
-            "submissions": sorted(submissions_by_problem[id], key=lambda submission: submission.score, reverse=True),
+            "submissions": submissions,
         })
 
     return render_template("index.html", problems=problems, score=score, recent_submissions=recent_submissions)
 
 @app.get("/download")
 @auth.login_required(role="admin")
-def download() -> ResponseReturnValue:
+def download_all() -> ResponseReturnValue:
     submissions = [row[0] for row in db.session.execute(db.select(Submission)).all()]
     submissions_by_problem = defaultdict(list)
     for submission in submissions:
@@ -189,13 +194,22 @@ Total score: $$TOTAL_SCORE$$
 
 @app.get("/submissions/<int:id>/solution")
 @auth.login_required(role="admin")
-def solution(id: int) -> ResponseReturnValue:
+def download_solution(id: int) -> ResponseReturnValue:
     return send_file(submissions_dir / str(id) / "solution.json", as_attachment=True)
 
 @app.get("/submissions/<int:id>/source")
 @auth.login_required(role="admin")
-def source(id: int) -> ResponseReturnValue:
+def download_source(id: int) -> ResponseReturnValue:
     return send_file(submissions_dir / str(id) / "source.zip", as_attachment=True)
+
+@app.get("/problems/<int:id>/solution")
+@auth.login_required(role="submitter")
+def download_best_solution(id: int) -> ResponseReturnValue:
+    last_submission = db.session.execute(db.select(Submission).filter_by(problem_id=id).order_by(Submission.created_at.desc())).first()
+    if last_submission is None:
+        abort(404)
+
+    return send_file(submissions_dir / str(last_submission[0].id) / "solution.json", as_attachment=True)
 
 @app.get("/scores")
 @auth.login_required(role="submitter")
@@ -249,7 +263,7 @@ def submit() -> ResponseReturnValue:
     if not response.ok:
         webhook.set_content(f"Received HTTP {response.status_code} while submitting new best score on problem {problem_id} ({improvement}, submission id {submission.id})")
         webhook.execute()
-        return response.content, response.status_code
+        abort(response.status_code)
 
     embed = DiscordEmbed(title=f"New best score on problem {problem_id}")
     embed.add_embed_field(name="Problem", value=str(problem_id))

@@ -7,6 +7,7 @@
 #include <locale>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -121,6 +122,22 @@ public:
         return problems;
     }
 
+    std::optional<Solution> getBestGlobalSolution(const std::shared_ptr<Problem> &problem) {
+        if (!serverEnabled) {
+            return std::nullopt;
+        }
+
+        auto response = server.Get("/problems/" + std::to_string(problem->id) + "/solution");
+        if (!response || response->status >= 400) {
+            return std::nullopt;
+        }
+
+        rapidjson::Document responseData;
+        responseData.Parse(response->body.c_str());
+
+        return Solution(problem, responseData);
+    }
+
     void submit(const Solution &solution) {
         submit(solution, solution.getScore());
     }
@@ -198,6 +215,10 @@ public:
                           << std::endl;
             }
         }
+    }
+
+    bool isServerEnabled() const {
+        return serverEnabled;
     }
 
 private:
