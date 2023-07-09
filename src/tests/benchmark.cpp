@@ -1,6 +1,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -15,17 +16,17 @@ Solution generateSolution(std::int64_t problemId) {
     }
 
     auto problemFile = projectRoot / "problems" / (std::to_string(problemId) + ".json");
-    Problem problem(problemFile);
+    auto problem = std::make_shared<Problem>(problemFile);
 
     std::vector<Point> placements;
 
-    Point nextPlacement = problem.stage.bottomLeft;
-    for (std::size_t i = 0; i < problem.musicians.size(); i++) {
+    Point nextPlacement = problem->stage.bottomLeft;
+    for (std::size_t i = 0; i < problem->musicians.size(); i++) {
         placements.emplace_back(nextPlacement);
 
         nextPlacement.x += 10;
-        if (!problem.stage.isInside(nextPlacement)) {
-            nextPlacement.x = problem.stage.bottomLeft.x;
+        if (!problem->stage.isInside(nextPlacement)) {
+            nextPlacement.x = problem->stage.bottomLeft.x;
             nextPlacement.y += 10;
         }
     }
@@ -36,21 +37,28 @@ Solution generateSolution(std::int64_t problemId) {
 static void isValid(benchmark::State &state) {
     auto solution = generateSolution(state.range(0));
 
+    bool valid = false;
     for (auto _ : state) {
-        solution.isValid();
+        benchmark::DoNotOptimize(valid = solution.isValid());
     }
 }
 
-BENCHMARK(isValid)->Arg(1)->Arg(2)->Arg(5)->Arg(20)->Arg(42)->Arg(56)->Arg(73)->Arg(79)->Unit(benchmark::kMillisecond);
+BENCHMARK(isValid)
+        ->Arg(1)->Arg(2)->Arg(5)->Arg(20)->Arg(42)->Arg(56)->Arg(73)->Arg(79)
+        ->Unit(benchmark::kMillisecond);
 
 static void getScore(benchmark::State &state) {
     auto solution = generateSolution(state.range(0));
 
+    long long score = 0;
     for (auto _ : state) {
-        solution.getScore();
+        benchmark::DoNotOptimize(score = solution.getScore());
     }
 }
 
-BENCHMARK(getScore)->Arg(1)->Arg(2)->Arg(5)->Arg(20)->Arg(42)->Arg(56)->Arg(73)->Arg(79)->Unit(benchmark::kMillisecond);
+BENCHMARK(getScore)
+        ->Arg(1)->Arg(2)->Arg(5)->Arg(20)->Arg(42)->Arg(56)->Arg(73)->Arg(79)
+        ->Iterations(10)
+        ->Unit(benchmark::kMillisecond);
 
 BENCHMARK_MAIN();

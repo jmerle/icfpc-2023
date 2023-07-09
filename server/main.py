@@ -1,4 +1,4 @@
-import json
+import orjson
 import os
 import requests
 import tempfile
@@ -10,6 +10,7 @@ from flask import Flask, render_template, request, send_file
 from flask.typing import ResponseReturnValue
 from flask_httpauth import HTTPBasicAuth
 from flask_sqlalchemy import SQLAlchemy
+from multiprocessing import Process
 from pathlib import Path
 from sqlalchemy import Column, DateTime, Integer, String
 from sqlalchemy.sql import func
@@ -103,7 +104,7 @@ def index() -> ResponseReturnValue:
 
     problems_by_id = {}
     for file in sorted(problem_files, key=lambda file: int(file.stem)):
-        problems_by_id[int(file.stem)] = json.loads(file.read_text(encoding="utf-8"))
+        problems_by_id[int(file.stem)] = orjson.loads(file.read_text(encoding="utf-8"))
 
     submissions = [row[0] for row in db.session.execute(db.select(Submission)).all()]
     submissions_by_problem = defaultdict(list)
@@ -224,31 +225,38 @@ def submit() -> ResponseReturnValue:
     if last_submission is not None and last_submission[0].score >= score:
         return {"new_best": False, "best_score": last_submission[0].score}
 
-    submission_content = solution_file.stream.read().decode("utf-8")
-
-    requests.post("https://api.icfpcontest.com/submission", json={
-        "problem_id": problem_id,
-        "contents": submission_content,
-    }, headers={"Authorization": f"Bearer {icfpc_token}"}).raise_for_status()
-
     submission = Submission(problem_id=problem_id, score=score, target=target)
     db.session.add(submission)
     db.session.commit()
 
     submission_dir = submissions_dir / str(submission.id)
     submission_dir.mkdir(exist_ok=True)
+    solution_file.save(submission_dir / "solution.json")
     source_archive.save(submission_dir / "source.zip")
 
-    with (submission_dir / "solution.json").open("w+", encoding="utf-8") as file:
-        file.write(submission_content)
+    response = requests.post("https://api.icfpcontest.com/submission", json={
+        "problem_id": problem_id,
+        "contents": (submission_dir / "solution.json").read_text(encoding="utf-8"),
+    }, headers={"Authorization": f"Bearer {icfpc_token}"})
+
+    if last_submission is not None:
+        improvement = f"{last_submission[0].score:,.0f} → {score:,.0f}"
+    else:
+        improvement = f"{score:,.0f}"
+
+    webhook = DiscordWebhook(url=discord_webhook, rate_limit_retry=True)
+
+    if not response.ok:
+        webhook.set_content(f"Received HTTP {response.status_code} while submitting new best score on problem {problem_id} ({improvement}, submission id {submission.id})")
+        webhook.execute()
+        return response.content, response.status_code
 
     embed = DiscordEmbed(title=f"New best score on problem {problem_id}")
     embed.add_embed_field(name="Problem", value=str(problem_id))
-    embed.add_embed_field(name="Score", value=f"{score:,.0f}")
+    embed.add_embed_field(name="Score", value=improvement)
     embed.add_embed_field(name="Target", value=target)
     embed.set_timestamp()
 
-    webhook = DiscordWebhook(url=discord_webhook, rate_limit_retry=True)
     webhook.add_embed(embed)
     webhook.execute()
 

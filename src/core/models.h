@@ -4,10 +4,12 @@
 #include <cstddef>
 #include <cstdio>
 #include <filesystem>
+#include <memory>
+#include <ostream>
 #include <string>
 #include <vector>
 
-#include <BS_thread_pool.hpp>
+#include <oneapi/tbb.h>
 #include <rapidjson/document.h>
 #include <rapidjson/filereadstream.h>
 
@@ -94,7 +96,9 @@ struct Problem {
             const std::vector<int> &musicians,
             const std::vector<Attendee> &attendees,
             const std::vector<Pillar> &pillars)
-            : id(id), room(room), stage(stage), musicians(musicians), attendees(attendees), pillars(pillars) {}
+            : id(id), room(room), stage(stage), musicians(musicians), attendees(attendees), pillars(pillars) {
+        postProcessInput();
+    }
 
     explicit Problem(const std::filesystem::path &file) {
         auto data = readJson(file);
@@ -104,8 +108,8 @@ struct Problem {
         room = {{0, 0}, data["room_width"].GetDouble(), data["room_height"].GetDouble()};
 
         const auto &stageBottomLeftArr = data["stage_bottom_left"].GetArray();
-        stage = {{stageBottomLeftArr[0].GetDouble() + 10, stageBottomLeftArr[1].GetDouble() + 10},
-                 data["stage_width"].GetDouble() - 20, data["stage_height"].GetDouble() - 20};
+        stage = {{stageBottomLeftArr[0].GetDouble(), stageBottomLeftArr[1].GetDouble()},
+                 data["stage_width"].GetDouble(), data["stage_height"].GetDouble()};
 
         const auto &musiciansArr = data["musicians"].GetArray();
         musicians.reserve(musiciansArr.Size());
@@ -142,6 +146,20 @@ struct Problem {
 
             pillars.emplace_back(center, radius);
         }
+
+        postProcessInput();
+    }
+
+    friend std::ostream &operator<<(std::ostream &stream, const Problem &problem) {
+        return stream << "[Problem " << problem.id << "] ";
+    }
+
+private:
+    void postProcessInput() {
+        stage.bottomLeft.x += 10;
+        stage.bottomLeft.y += 10;
+        stage.width -= 20;
+        stage.height -= 20;
     }
 };
 
@@ -152,18 +170,19 @@ enum class ScoreType {
 };
 
 struct Solution {
-    Problem problem;
+    std::shared_ptr<Problem> problem;
     std::vector<Point> placements;
 
-    Solution(const Problem &problem, const std::vector<Point> &placements) : problem(problem), placements(placements) {}
+    Solution(const std::shared_ptr<Problem> &problem, const std::vector<Point> &placements)
+            : problem(problem), placements(placements) {}
 
     bool isValid() const {
-        if (problem.musicians.size() != placements.size()) {
+        if (problem->musicians.size() != placements.size()) {
             return false;
         }
 
         for (const auto &placement : placements) {
-            if (!problem.stage.isInside(placement)) {
+            if (!problem->stage.isInside(placement)) {
                 return false;
             }
         }
@@ -181,7 +200,7 @@ struct Solution {
 
     long long getScore(ScoreType type = ScoreType::AUTO) const {
         if (type == ScoreType::AUTO) {
-            type = problem.id <= 55 ? ScoreType::LIGHTNING : ScoreType::FULL;
+            type = problem->id <= 55 ? ScoreType::LIGHTNING : ScoreType::FULL;
         }
 
         std::vector<double> closenessFactors;
@@ -191,7 +210,7 @@ struct Solution {
                 double closeness = 1;
 
                 for (std::size_t j = 0; j < placements.size(); j++) {
-                    if (i != j && problem.musicians[i] == problem.musicians[j]) {
+                    if (i != j && problem->musicians[i] == problem->musicians[j]) {
                         closeness += 1.0 / placements[i].distanceTo(placements[j]);
                     }
                 }
@@ -200,66 +219,60 @@ struct Solution {
             }
         }
 
-        BS::thread_pool threadPool;
+        return oneapi::tbb::parallel_reduce(
+                oneapi::tbb::blocked_range<std::size_t>(0, problem->attendees.size()),
+                static_cast<long long>(0),
+                [&](const oneapi::tbb::blocked_range<std::size_t> &range, long long init) {
+                    for (std::size_t attendeeIdx = range.begin(); attendeeIdx != range.end(); attendeeIdx++) {
+                        const auto &attendee = problem->attendees[attendeeIdx];
+                        for (std::size_t i = 0; i < placements.size(); i++) {
+                            if (attendee.tastes[problem->musicians[i]] == 0) {
+                                continue;
+                            }
 
-        std::vector<std::future<long long>> futures;
-        futures.reserve(problem.attendees.size());
+                            bool isBlocked = false;
+                            for (std::size_t j = 0; j < placements.size(); j++) {
+                                if (i != j && isBlocking(placements[i], attendee.position, placements[j], 5)) {
+                                    isBlocked = true;
+                                    break;
+                                }
+                            }
 
-        for (const auto &attendee : problem.attendees) {
-            futures.emplace_back(threadPool.submit([&] {
-                long long score = 0;
+                            if (isBlocked) {
+                                continue;
+                            }
 
-                for (std::size_t i = 0; i < placements.size(); i++) {
-                    if (attendee.tastes[problem.musicians[i]] == 0) {
-                        continue;
-                    }
+                            if (type == ScoreType::FULL) {
+                                for (const auto &pillar : problem->pillars) {
+                                    if (isBlocking(placements[i], attendee.position, pillar.center, pillar.radius)) {
+                                        isBlocked = true;
+                                        break;
+                                    }
+                                }
 
-                    bool isBlocked = false;
-                    for (std::size_t j = 0; j < placements.size(); j++) {
-                        if (i != j && isBlocking(placements[i], attendee.position, placements[j], 5)) {
-                            isBlocked = true;
-                            break;
-                        }
-                    }
+                                if (isBlocked) {
+                                    continue;
+                                }
+                            }
 
-                    if (isBlocked) {
-                        continue;
-                    }
+                            double taste = 1'000'000.0 * attendee.tastes[problem->musicians[i]];
+                            double distance = attendee.position.distanceTo(placements[i]);
+                            double impact = std::ceil(taste / std::pow(distance, 2));
 
-                    if (type == ScoreType::FULL) {
-                        for (const auto &pillar : problem.pillars) {
-                            if (isBlocking(placements[i], attendee.position, pillar.center, pillar.radius)) {
-                                isBlocked = true;
-                                break;
+                            if (type == ScoreType::LIGHTNING) {
+                                init += impact;
+                            } else {
+                                init += std::ceil(closenessFactors[i] * impact);
                             }
                         }
-
-                        if (isBlocked) {
-                            continue;
-                        }
                     }
 
-                    double taste = 1'000'000.0 * attendee.tastes[problem.musicians[i]];
-                    double distance = attendee.position.distanceTo(placements[i]);
-                    double impact = std::ceil(taste / std::pow(distance, 2));
-
-                    if (type == ScoreType::LIGHTNING) {
-                        score += impact;
-                    } else {
-                        score += std::ceil(closenessFactors[i] * impact);
-                    }
+                    return init;
+                },
+                [](long long lhs, long long rhs) {
+                    return lhs + rhs;
                 }
-
-                return score;
-            }));
-        }
-
-        long long score = 0;
-        for (auto &future : futures) {
-            score += future.get();
-        }
-
-        return score;
+        );
     }
 
     rapidjson::Document toJson() const {

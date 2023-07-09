@@ -1,3 +1,7 @@
+#include <memory>
+#include <string>
+#include <vector>
+
 #include <core/models.h>
 
 #include <gtest/gtest.h>
@@ -6,10 +10,10 @@
 
 class SolutionFixture : public ::testing::Test {
 protected:
-    Problem createExampleProblem() const {
+    std::shared_ptr<Problem> createExampleProblem() const {
         int id = 1;
         Area room({0, 0}, 2000, 5000);
-        Area stage({500 + 10, 0 + 10}, 1000 - 20, 200 - 20);
+        Area stage({500, 0}, 1000, 200);
         std::vector<int> musicians{0, 1, 0};
         std::vector<Attendee> attendees{
                 {{100,  500},  {1000, -1000}},
@@ -18,7 +22,7 @@ protected:
         };
         std::vector<Pillar> pillars;
 
-        return {id, room, stage, musicians, attendees, pillars};
+        return std::make_shared<Problem>(id, room, stage, musicians, attendees, pillars);
     }
 
     Solution createExampleSolution() const {
@@ -92,7 +96,7 @@ TEST_F(SolutionFixture, GetScoreExampleFull) {
 TEST_F(SolutionFixture, GetScoreExtendedExample) {
     int id = 1;
     Area room({0, 0}, 2000, 5000);
-    Area stage({500 + 10, 0 + 10}, 1000 - 20, 200 - 20);
+    Area stage({500, 0}, 1000, 200);
     std::vector<int> musicians{0, 1, 0};
     std::vector<Attendee> attendees{
             {{100,  500},  {1000, -1000}},
@@ -103,7 +107,7 @@ TEST_F(SolutionFixture, GetScoreExtendedExample) {
             {{345, 255}, 4}
     };
 
-    Problem problem(id, room, stage, musicians, attendees, pillars);
+    auto problem = std::make_shared<Problem>(id, room, stage, musicians, attendees, pillars);
     std::vector<Point> placements{
             {590,  10},
             {1100, 100},

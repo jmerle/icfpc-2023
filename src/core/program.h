@@ -1,7 +1,6 @@
 #pragma once
 
 #include <algorithm>
-#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -47,8 +46,8 @@ class Program {
     httplib::Client server;
     bool serverEnabled;
 
-    std::unordered_map<int, int> localScores;
-    std::unordered_map<int, int> globalScores;
+    std::unordered_map<int, long long> localScores;
+    std::unordered_map<int, long long> globalScores;
 
     std::mutex submitMutex;
 
@@ -65,14 +64,14 @@ public:
         server.set_basic_auth(getEnv("SUBMITTER_USERNAME", "submitter"), getEnv("SUBMITTER_PASSWORD", "hunter2"));
     }
 
-    std::vector<Problem> parseArgs(int argc, char *argv[]) {
+    std::vector<std::shared_ptr<Problem>> parseArgs(int argc, char *argv[]) {
         auto problemsRoot = projectRoot / "problems";
 
-        std::vector<Problem> problems;
+        std::vector<std::shared_ptr<Problem>> problems;
         if (argc <= 1) {
             for (const auto &entry : std::filesystem::directory_iterator(problemsRoot)) {
                 if (entry.path().extension() == ".json" && entry.is_regular_file()) {
-                    problems.emplace_back(entry.path());
+                    problems.emplace_back(std::make_shared<Problem>(entry.path()));
                 }
             }
         } else {
@@ -88,13 +87,14 @@ public:
                     continue;
                 }
 
-                problems.emplace_back(path);
+                problems.emplace_back(std::make_shared<Problem>(path));
             }
         }
 
-        std::sort(problems.begin(), problems.end(), [](const Problem &a, const Problem &b) {
-            return a.id < b.id;
-        });
+        std::sort(problems.begin(), problems.end(),
+                  [](const std::shared_ptr<Problem> &a, const std::shared_ptr<Problem> &b) {
+                      return a->id < b->id;
+                  });
 
         if (problems.empty()) {
             std::cout << "No problems to solve" << std::endl;
@@ -108,7 +108,7 @@ public:
             std::cout << ':';
 
             for (const auto &problem : problems) {
-                std::cout << ' ' << problem.id;
+                std::cout << ' ' << problem->id;
             }
 
             std::cout << std::endl;
@@ -122,21 +122,24 @@ public:
     }
 
     void submit(const Solution &solution) {
+        submit(solution, solution.getScore());
+    }
+
+    void submit(const Solution &solution, long long score) {
         if (!solution.isValid()) {
             return;
         }
 
-        int score = solution.getScore();
         if (score <= 0) {
             return;
         }
 
         std::unique_lock submitLock(submitMutex);
 
-        auto localImprovement = isImprovement(localScores, solution.problem.id, score, "local");
+        auto localImprovement = isImprovement(localScores, solution.problem->id, score, "local");
         if (!localImprovement.empty()) {
             auto outputDirectory = projectRoot / "results" / target;
-            auto outputFile = outputDirectory / (std::to_string(solution.problem.id) + ".json");
+            auto outputFile = outputDirectory / (std::to_string(solution.problem->id) + ".json");
 
             if (!std::filesystem::is_directory(outputDirectory)) {
                 std::filesystem::create_directories(outputDirectory);
@@ -148,14 +151,14 @@ public:
             solution.toJson().Accept(writer);
 
             std::cout << localImprovement << std::endl;
-            localScores[solution.problem.id] = score;
+            localScores[solution.problem->id] = score;
         }
 
         if (!serverEnabled) {
             return;
         }
 
-        auto globalImprovement = isImprovement(globalScores, solution.problem.id, score, "global");
+        auto globalImprovement = isImprovement(globalScores, solution.problem->id, score, "global");
         if (!globalImprovement.empty()) {
             rapidjson::StringBuffer solutionBuffer;
             rapidjson::Writer<rapidjson::StringBuffer> solutionWriter(solutionBuffer);
@@ -164,15 +167,15 @@ public:
             std::string source(&_binary_source_zip_start, &_binary_source_zip_end);
 
             httplib::MultipartFormDataItems formData = {
-                    {"problemId",     std::to_string(solution.problem.id), "",              ""},
-                    {"score",         std::to_string(score),               "",              ""},
-                    {"target",        target,                              "",              ""},
-                    {"solutionFile",  solutionBuffer.GetString(),          "solution.json", "application/json"},
-                    {"sourceArchive", source,                              "source.zip",    "application/zip"}
+                    {"problemId",     std::to_string(solution.problem->id), "",              ""},
+                    {"score",         std::to_string(score),                "",              ""},
+                    {"target",        target,                               "",              ""},
+                    {"solutionFile",  solutionBuffer.GetString(),           "solution.json", "application/json"},
+                    {"sourceArchive", source,                               "source.zip",    "application/zip"}
             };
 
             auto response = server.Post("/submit", formData);
-            if (response) {
+            if (response && response->status < 400) {
                 rapidjson::Document responseData;
                 responseData.Parse(response->body.c_str());
 
@@ -181,11 +184,16 @@ public:
                     std::cout << globalImprovement << std::endl;
                 }
 
-                globalScores[solution.problem.id] = responseData["best_score"].GetInt();
+                globalScores[solution.problem->id] = responseData["best_score"].GetInt64();
+            } else if (response) {
+                std::cout << *solution.problem
+                          << "Received HTTP "
+                          << response->status
+                          << " while submitting new global best"
+                          << std::endl;
             } else {
-                std::cout << "[Problem "
-                          << solution.problem.id
-                          << "] Something went wrong while submitting new global best: "
+                std::cout << *solution.problem
+                          << "Something went wrong while submitting new global best: "
                           << httplib::to_string(response.error())
                           << std::endl;
             }
@@ -209,7 +217,7 @@ private:
 
         for (const auto &pair : responseData.GetObject()) {
             int id = std::stoi(pair.name.GetString());
-            int score = pair.value.GetInt();
+            long long score = pair.value.GetInt64();
 
             globalScores[id] = score;
         }
@@ -226,9 +234,9 @@ private:
         }
     }
 
-    std::string isImprovement(const std::unordered_map<int, int> &scores,
+    std::string isImprovement(const std::unordered_map<int, long long> &scores,
                               int problemId,
-                              int score,
+                              long long score,
                               const std::string &label) const {
         std::stringstream stream;
 

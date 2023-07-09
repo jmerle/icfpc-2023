@@ -6,7 +6,7 @@ FROM ubuntu:22.04
 
 WORKDIR /app
 
-RUN apt update -y && apt install -y screen curl
+RUN apt update -y && apt install -y screen curl libtbb-dev
 RUN touch ~/.no_auto_tmux
 
 COPY problems /app/problems
