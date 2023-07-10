@@ -7,13 +7,14 @@ from collections import defaultdict
 from contextlib import contextmanager
 from discord_webhook import DiscordEmbed, DiscordWebhook
 from dotenv import load_dotenv
-from flask import abort, Flask, render_template, redirect, request, send_file
+from flask import abort, Flask, make_response, render_template, redirect, request, send_file
 from flask.typing import ResponseReturnValue
 from flask_httpauth import HTTPBasicAuth
 from flask_sqlalchemy import SQLAlchemy
 from pathlib import Path
 from sqlalchemy import Column, DateTime, Integer, String
 from sqlalchemy.sql import func
+from svgwrite import Drawing
 from typing import Generator
 from werkzeug.security import check_password_hash, generate_password_hash
 from zipfile import ZipFile
@@ -223,6 +224,40 @@ def delete_submission(id: int) -> ResponseReturnValue:
     db.session.commit()
 
     return redirect("/")
+
+@app.get("/submissions/<int:id>/view")
+@auth.login_required(role="admin")
+def visualize(id: int) -> ResponseReturnValue:
+    submission = db.session.execute(db.select(Submission).filter_by(id=id)).first()
+    if submission is None:
+        abort(404)
+
+    submission_file = submissions_dir / str(id) / "solution.json"
+    submission_data = orjson.loads(submission_file.read_text(encoding="utf-8"))
+
+    problem_file = problems_dir / f"{submission[0].problem_id}.json"
+    problem_data = orjson.loads(problem_file.read_text(encoding="utf-8"))
+
+    room_width, room_height = problem_data["room_width"], problem_data["room_height"]
+    stage_width, stage_height = problem_data["stage_width"], problem_data["stage_height"]
+    stage_x, stage_y = problem_data["stage_bottom_left"]
+
+    svg = Drawing(viewBox=f"0 0 {room_width} {room_height}")
+    svg.add(svg.rect(insert=(0, 0), size=("100%", "100%"), fill="lightgray"))
+    svg.add(svg.rect(insert=(stage_x, room_height - (stage_y + stage_height)), size=(stage_width, stage_height), fill="black"))
+
+    for attendee in problem_data["attendees"]:
+        svg.add(svg.circle(center=(attendee["x"], room_height - attendee["y"]), r=5, fill="red"))
+
+    for pillar in problem_data["pillars"]:
+        svg.add(svg.circle(center=(pillar["center"][0], room_height - pillar["center"][1]), r=pillar["radius"], fill="white", stroke="black"))
+
+    for placement in submission_data["placements"]:
+        svg.add(svg.circle(center=(placement["x"], room_height - placement["y"]), r=5, fill="white"))
+
+    response = make_response(svg.tostring(), 200)
+    response.mimetype = "image/svg+xml"
+    return response
 
 @app.get("/problems/<int:id>/solution")
 @auth.login_required(role="submitter")

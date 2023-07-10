@@ -27,7 +27,7 @@ Solution generateRandomSolution(const std::shared_ptr<Problem> &problem) {
 
             bool tooClose = false;
             for (const auto &placement : placements) {
-                if (point.distanceTo(placement) < 10) {
+                if (point.distanceTo2(placement) < 100) {
                     tooClose = true;
                     break;
                 }
@@ -52,8 +52,8 @@ int main(int argc, char *argv[]) {
     std::random_device randomDevice;
     std::mt19937 rng(randomDevice());
 
-    double randomTime = 30;
-    double optimizeTime = 240;
+    double randomTime = 10;
+    double optimizeTime = 60;
     double submissionInterval = 60;
 
     for (const auto &problem : problems) {
@@ -83,7 +83,7 @@ int main(int argc, char *argv[]) {
         std::cout << *problem << "Finding best random solution for " << randomTime << " seconds" << std::endl;
 
         Timer randomTimer;
-        std::size_t randomIteration = 1;
+        std::size_t randomIteration = 0;
 
         while (randomTimer.elapsedSeconds() < randomTime) {
             randomIteration++;

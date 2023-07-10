@@ -42,7 +42,11 @@ struct Point {
     Point(double x, double y) : x(x), y(y) {}
 
     double distanceTo(const Point &other) const {
-        return std::sqrt(std::pow(other.x - x, 2) + std::pow(other.y - y, 2));
+        return std::sqrt((other.x - x) * (other.x - x) + (other.y - y) * (other.y - y));
+    }
+
+    double distanceTo2(const Point &other) const {
+        return (other.x - x) * (other.x - x) + (other.y - y) * (other.y - y);
     }
 };
 
@@ -226,7 +230,7 @@ struct Solution {
 
         for (std::size_t i = 0; i < placements.size(); i++) {
             for (std::size_t j = 0; j < placements.size(); j++) {
-                if (i != j && placements[i].distanceTo(placements[j]) < 10) {
+                if (i != j && placements[i].distanceTo2(placements[j]) < 100) {
                     return false;
                 }
             }
@@ -292,8 +296,8 @@ struct Solution {
 
                                 if (type == ScoreType::FULL) {
                                     for (const auto &pillar : problem->pillars) {
-                                        if (isBlocking(placements[i], attendee.position, pillar.center,
-                                                       pillar.radius)) {
+                                        if (isBlocking(
+                                                placements[i], attendee.position, pillar.center, pillar.radius)) {
                                             isBlocked = true;
                                             break;
                                         }
@@ -307,8 +311,8 @@ struct Solution {
                                 double volume = volumes[i];
 
                                 double taste = 1'000'000.0 * attendee.tastes[problem->musicians[i]];
-                                double distance = attendee.position.distanceTo(placements[i]);
-                                double impact = std::ceil(taste / std::pow(distance, 2));
+                                double distance = attendee.position.distanceTo2(placements[i]);
+                                double impact = std::ceil(taste / distance);
 
                                 if (type == ScoreType::LIGHTNING) {
                                     init += std::ceil(volume * impact);
@@ -363,8 +367,8 @@ struct Solution {
                             }
 
                             double taste = 1'000'000.0 * attendee.tastes[problem->musicians[i]];
-                            double distance = attendee.position.distanceTo(placements[i]);
-                            double impact = std::ceil(taste / std::pow(distance, 2));
+                            double distance = attendee.position.distanceTo2(placements[i]);
+                            double impact = std::ceil(taste / distance);
 
                             if (type == ScoreType::LIGHTNING) {
                                 init[i].emplace_back(impact);

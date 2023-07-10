@@ -47,18 +47,32 @@ BENCHMARK(isValid)
         ->Arg(1)->Arg(2)->Arg(5)->Arg(20)->Arg(42)->Arg(56)->Arg(73)->Arg(79)
         ->Unit(benchmark::kMillisecond);
 
-static void getScore(benchmark::State &state) {
+static void getScoreNonOptimizing(benchmark::State &state) {
     auto solution = generateSolution(state.range(0));
 
     long long score = 0;
     for (auto _ : state) {
-        benchmark::DoNotOptimize(score = solution.getScore());
+        benchmark::DoNotOptimize(score = solution.getScore(ScoreType::AUTO, false));
     }
 }
 
-BENCHMARK(getScore)
+BENCHMARK(getScoreNonOptimizing)
         ->Arg(1)->Arg(2)->Arg(5)->Arg(20)->Arg(42)->Arg(56)->Arg(73)->Arg(79)
-        ->Iterations(10)
+        ->Iterations(50)
+        ->Unit(benchmark::kMillisecond);
+
+static void getScoreOptimizing(benchmark::State &state) {
+    auto solution = generateSolution(state.range(0));
+
+    long long score = 0;
+    for (auto _ : state) {
+        benchmark::DoNotOptimize(score = solution.getScore(ScoreType::AUTO, true));
+    }
+}
+
+BENCHMARK(getScoreOptimizing)
+        ->Arg(1)->Arg(2)->Arg(5)->Arg(20)->Arg(42)->Arg(56)->Arg(73)->Arg(79)
+        ->Iterations(50)
         ->Unit(benchmark::kMillisecond);
 
 BENCHMARK_MAIN();

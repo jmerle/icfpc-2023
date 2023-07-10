@@ -91,6 +91,7 @@
                         <td>{{ problem.submissions[0].target }}</td>
                         <td>{{ problem.submissions[0].created_at }}</td>
                         <td>
+                            <a href="/submissions/{{ problem.submissions[0].id }}/view" target="_blank">View</a>
                             <a href="/submissions/{{ problem.submissions[0].id }}/solution" target="_blank">Download solution</a>
                             <a href="/submissions/{{ problem.submissions[0].id }}/source" target="_blank">Download source</a>
                             <a href="/submissions/{{ problem.submissions[0].id }}/delete">Delete</a>
@@ -130,6 +131,7 @@
                         <td>{{ submission.target }}</td>
                         <td>{{ submission.created_at }}</td>
                         <td>
+                            <a href="/submissions/{{ submission.id }}/view" target="_blank">View</a>
                             <a href="/submissions/{{ submission.id }}/solution" target="_blank">Download solution</a>
                             <a href="/submissions/{{ submission.id }}/source" target="_blank">Download source</a>
                             <a href="/submissions/{{ submission.id }}/delete">Delete</a>
@@ -183,6 +185,7 @@
                                                 <td>{{ submission.target }}</td>
                                                 <td>{{ submission.created_at }}</td>
                                                 <td>
+                                                    <a href="/submissions/{{ submission.id }}/view" target="_blank">View</a>
                                                     <a href="/submissions/{{ submission.id }}/solution" target="_blank">Download solution</a>
                                                     <a href="/submissions/{{ submission.id }}/source" target="_blank">Download source</a>
                                                     <a href="/submissions/{{ submission.id }}/delete">Delete</a>
