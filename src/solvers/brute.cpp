@@ -1,5 +1,7 @@
+#include <algorithm>
 #include <cstddef>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <random>
 #include <utility>
@@ -9,9 +11,54 @@
 #include <core/program.h>
 #include <core/timer.h>
 
+bool isTooClose(const std::vector<Point> &placements, const Point &newPlacement) {
+    for (const auto &placement : placements) {
+        if (newPlacement.distanceTo2(placement) < 100) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 Solution generateRandomSolution(const std::shared_ptr<Problem> &problem) {
-    std::vector<Point> placements;
-    placements.reserve(problem->musicians.size());
+    std::vector<Point> possiblePlacements;
+
+    Point nextPlacement = problem->stage.bottomLeft;
+    while (problem->stage.isInside(nextPlacement)) {
+        if (!isTooClose(possiblePlacements, nextPlacement)) {
+            possiblePlacements.emplace_back(nextPlacement);
+        }
+
+        nextPlacement.x += 10;
+    }
+
+    nextPlacement = {problem->stage.bottomLeft.x, problem->stage.bottomLeft.y + problem->stage.height};
+    while (problem->stage.isInside(nextPlacement)) {
+        if (!isTooClose(possiblePlacements, nextPlacement)) {
+            possiblePlacements.emplace_back(nextPlacement);
+        }
+
+        nextPlacement.x += 10;
+    }
+
+    nextPlacement = problem->stage.bottomLeft;
+    while (problem->stage.isInside(nextPlacement)) {
+        if (!isTooClose(possiblePlacements, nextPlacement)) {
+            possiblePlacements.emplace_back(nextPlacement);
+        }
+
+        nextPlacement.y += 10;
+    }
+
+    nextPlacement = {problem->stage.bottomLeft.x + problem->stage.width, problem->stage.bottomLeft.y};
+    while (problem->stage.isInside(nextPlacement)) {
+        if (!isTooClose(possiblePlacements, nextPlacement)) {
+            possiblePlacements.emplace_back(nextPlacement);
+        }
+
+        nextPlacement.y += 10;
+    }
 
     std::random_device randomDevice;
     std::mt19937 rng(randomDevice());
@@ -21,25 +68,24 @@ Solution generateRandomSolution(const std::shared_ptr<Problem> &problem) {
     std::uniform_real_distribution<double> yDist(problem->stage.bottomLeft.y,
                                                  problem->stage.bottomLeft.y + problem->stage.height);
 
-    for (std::size_t i = 0; i < problem->musicians.size(); i++) {
+    while (possiblePlacements.size() < problem->musicians.size()) {
         while (true) {
             Point point(xDist(rng), yDist(rng));
 
-            bool tooClose = false;
-            for (const auto &placement : placements) {
-                if (point.distanceTo2(placement) < 100) {
-                    tooClose = true;
-                    break;
-                }
+            if (!isTooClose(possiblePlacements, point)) {
+                possiblePlacements.emplace_back(point);
+                break;
             }
-
-            if (tooClose) {
-                continue;
-            }
-
-            placements.emplace_back(point);
-            break;
         }
+    }
+
+    std::shuffle(possiblePlacements.begin(), possiblePlacements.end(), rng);
+
+    std::vector<Point> placements;
+    placements.reserve(problem->musicians.size());
+
+    for (std::size_t i = 0; i < problem->musicians.size(); i++) {
+        placements.emplace_back(possiblePlacements[i]);
     }
 
     return {problem, placements};
@@ -52,8 +98,8 @@ int main(int argc, char *argv[]) {
     std::random_device randomDevice;
     std::mt19937 rng(randomDevice());
 
-    double randomTime = 10;
-    double optimizeTime = 60;
+    double randomTime = 30;
+    double optimizeTime = 150;
     double submissionInterval = 60;
 
     for (const auto &problem : problems) {
@@ -96,8 +142,8 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        std::cout << *problem << "Generated " << randomIteration << " random solutions" << std::endl;
         program.submit(bestSolution, bestScore);
+        std::cout << *problem << "Generated " << randomIteration << " random solutions" << std::endl;
 
         std::uniform_int_distribution<std::size_t> indexDist(0, problem->musicians.size() - 1);
         std::uniform_real_distribution<double> deltaDist(-5.0, 5.0);
@@ -125,11 +171,16 @@ int main(int argc, char *argv[]) {
                     std::swap(newSolution.placements[indexDist(rng)], newSolution.placements[indexDist(rng)]);
                     break;
                 }
-                case 1:
-                case 2: {
+                case 1: {
                     auto &placement = newSolution.placements[indexDist(rng)];
                     placement.x += deltaDist(rng);
                     placement.y += deltaDist(rng);
+                    break;
+                }
+                case 2: {
+                    auto &placement = newSolution.placements[indexDist(rng)];
+                    placement.x = xDist(rng);
+                    placement.y = yDist(rng);
                     break;
                 }
             }
